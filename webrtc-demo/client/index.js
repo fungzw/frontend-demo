@@ -1,4 +1,6 @@
-const ws = new WebSocket("ws://127.0.0.1:8000"); //连接到客户端
+
+const host = window.location.host
+const ws = new WebSocket("wss://"+ host); //连接到客户端
 
 let localUser = ''
 let remoteUser = ''

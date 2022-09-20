@@ -40,6 +40,13 @@ a {
     padding: 20px;
 }
 
+.video-container .small-wrapper {
+    position: absolute !important;
+    right: 0px;
+    z-index: 999;
+    width: 300px;
+}
+
 /* .video-container .local-video { position: absolute; width: 200px; top: 20px; right: 20px; } */
 .video-container .local-video-wrapper {
     position: relative;
