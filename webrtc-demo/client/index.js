@@ -1,9 +1,8 @@
-const ws = new WebSocket("wss://"+ window.location.host); //连接到客户端
+createWs(null, msgCallback, null, null)
 
 let localUser = ''
 let remoteUser = ''
 let localMediaStream = null
-let remoteMediaStream = null
 
     /**
  * 更新用户列表
@@ -89,8 +88,8 @@ async function onnegotiationneeded() {
       description: offer // offer结构{type:'offer', sdp: sdp}
     }
   }
-  console.log(JSON.stringify(msg))
-  ws.send(JSON.stringify(msg))
+
+  sendWs(JSON.stringify(msg))
 }
 
 function onicecandidate(evt) {
@@ -106,8 +105,7 @@ function onicecandidate(evt) {
       }
     }
 
-    console.log(JSON.stringify(msg))
-    ws.send(JSON.stringify(msg))
+    sendWs(JSON.stringify(msg))
   }
 }
 
@@ -119,7 +117,8 @@ function ontrack(evt) {
   const remoteVideo = document.getElementById('remote-video');
   remoteVideo.srcObject = evt.streams[0];
 
-  showClose()
+  const closeChat = document.getElementById('closeChat');
+  closeChat.style.display = 'inline';
 }
 
 async function handleReceiveOffer(data) {
@@ -149,8 +148,8 @@ async function handleReceiveOffer(data) {
       description: answer // answer结构也是{type:'answer',sdp:sdp}
     }
   }
-  console.log(JSON.stringify(wantMsg))
-  ws.send(JSON.stringify(wantMsg))
+
+  sendWs(JSON.stringify(wantMsg))
 }
 
 async function handleReceiveAnswer(data) {
@@ -164,12 +163,11 @@ async function handleReceiveCandidate(data){
   await pc.addIceCandidate(data.candidate);
 }
 
-async function handleReceiveBye(data) {
-  closePc()
-  hideClose()
+async function handleReceiveBye() {
+  closePeerConnection()
 }
 
-function closePc() {
+function closePeerConnection() {
   if (this.pc) {
     this.pc.close();
     this.pc = null;
@@ -188,16 +186,13 @@ function closePc() {
   localVideo.srcObject = null
   const remoteVideo = document.getElementById('remote-video');
   remoteVideo.srcObject = null
+
+  const closeChat = document.getElementById('closeChat');
+  closeChat.style.display = 'none';
 }
 
-//上线
-ws.onopen = () => {
-
-};
 // 接收消息
-ws.onmessage = (msg) => {
-  console.log('client receive', msg.data)
-  const jsonMsg = JSON.parse(msg.data)
+function msgCallback(jsonMsg) {
   switch (jsonMsg.type) {
     case 'login':
       localUser = jsonMsg.data
@@ -221,25 +216,6 @@ ws.onmessage = (msg) => {
     default:
       break;
   }
-};
-//error
-ws.onerror = (err) => {
-  console.log(err);
-};
-
-//下线
-ws.onclose = () => {
-  console.log("close");
-};
-
-function showClose() {
-  const closeChat = document.getElementById('closeChat');
-  closeChat.style.display = 'inline';
-}
-
-function hideClose() {
-  const closeChat = document.getElementById('closeChat');
-  closeChat.style.display = 'none';
 }
 
 const closeChat2 = document.getElementById('closeChat');
@@ -253,7 +229,6 @@ closeChat2.onclick = function () {
     }
   }
 
-  ws.send(JSON.stringify(msg))
-  closePc()
-  hideClose()
+  sendWs(JSON.stringify(msg))
+  closePeerConnection()
 }
