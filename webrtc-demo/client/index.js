@@ -104,6 +104,7 @@ async function startChat() {
 
         // 将媒体流添加到webrtc的音视频收发器
         localMediaStream.getTracks().forEach(track => {
+            console.log('pc add track', track)
             pc.addTrack(track, localMediaStream);
         });
     }
@@ -120,7 +121,7 @@ function createPeerConnection() {
 }
 
 async function onnegotiationneeded() {
-    console.log('client create offer')
+    console.log('after add track, on negotiationneeded,so create offer')
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
@@ -207,7 +208,7 @@ async function handleReceiveOffer(data) {
         pc.addTrack(track, localMediaStream);
     });
 
-    const answer = await pc.createAnswer(); // TODO 错误处理
+    const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     const wantMsg = {
         type: 'answer',
