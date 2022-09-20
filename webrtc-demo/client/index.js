@@ -1,13 +1,13 @@
-
-const host = window.location.host
-const ws = new WebSocket("wss://"+ host); //连接到客户端
+const ws = new WebSocket("wss://"+ window.location.host); //连接到客户端
 
 let localUser = ''
 let remoteUser = ''
+let localMediaStream = null
+let remoteMediaStream = null
 
-/**
+    /**
  * 更新用户列表
- * @param {Array} users 用户列表，比如 [{name: '小明', name: '小强'}]
+ * @param {Array} users
  */
 function updateUserList(users) {
   const fragment = document.createDocumentFragment();
@@ -30,13 +30,13 @@ async function handleUserClick(evt) {
   const target = evt.target;
   const userName = target.getAttribute('data-name').trim();
 
-  if (userName === localUser) {
+  if (userName + '' === localUser + '') {
     alert('不能跟自己进行视频会话');
     return;
   }
 
   remoteUser = userName;
-  await startVideoTalk(remoteUser);
+  await startChat(remoteUser);
 }
 
 let pc = null;
@@ -46,21 +46,22 @@ let pc = null;
  *  1、本地启动视频采集
  *  2、交换信令
  */
-async function startVideoTalk() {
+async function startChat() {
   // 开启本地视频
   const localVideo = document.getElementById('local-video');
-  const mediaStream = await navigator.mediaDevices.getUserMedia({
+  localMediaStream = await navigator.mediaDevices.getUserMedia({
     video: true,
     audio: true
   });
-  localVideo.srcObject = mediaStream;
+  localVideo.srcObject = localMediaStream;
+  console.log('startChat,localMediaStream', localMediaStream)
 
   // 创建 peerConnection
   createPeerConnection();
 
   // 将媒体流添加到webrtc的音视频收发器
-  mediaStream.getTracks().forEach(track => {
-    pc.addTrack(track, mediaStream);
+  localMediaStream.getTracks().forEach(track => {
+    pc.addTrack(track, localMediaStream);
   });
 }
 
@@ -101,11 +102,7 @@ function onicecandidate(evt) {
         from: localUser,
         to: remoteUser,
         session_id: localUser + '_' + remoteUser,
-        candidate: {
-          sdpMid: evt.candidate.sdpMid,
-          sdpMLineIndex: evt.candidate.sdpMLineIndex,
-          candidate: evt.candidate.candidate
-        }
+        candidate: evt.candidate // evt结构：{sdpMid:xxx,sdpMLineIndex:xxx,candidate:xxx}
       }
     }
 
@@ -121,6 +118,8 @@ let stream;
 function ontrack(evt) {
   const remoteVideo = document.getElementById('remote-video');
   remoteVideo.srcObject = evt.streams[0];
+
+  showClose()
 }
 
 async function handleReceiveOffer(data) {
@@ -132,10 +131,11 @@ async function handleReceiveOffer(data) {
 
   // 本地音视频采集
   const localVideo = document.getElementById('local-video');
-  const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = mediaStream;
-  mediaStream.getTracks().forEach(track => {
-    pc.addTrack(track, mediaStream);
+  localMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  console.log('receive offer,open localmediastream', localMediaStream)
+  localVideo.srcObject = localMediaStream;
+  localMediaStream.getTracks().forEach(track => {
+    pc.addTrack(track, localMediaStream);
   });
 
   const answer = await pc.createAnswer(); // TODO 错误处理
@@ -164,6 +164,32 @@ async function handleReceiveCandidate(data){
   await pc.addIceCandidate(data.candidate);
 }
 
+async function handleReceiveBye(data) {
+  closePc()
+  hideClose()
+}
+
+function closePc() {
+  if (this.pc) {
+    this.pc.close();
+    this.pc = null;
+  }
+
+  console.log('localMediaStream', localMediaStream)
+  if (localMediaStream && localMediaStream.getTracks()) {
+    localMediaStream.getTracks().forEach(function (track) {
+      console.log('关闭track', track)
+      track.stop();
+    });
+    localMediaStream = null;
+  }
+
+  const localVideo = document.getElementById('local-video');
+  localVideo.srcObject = null
+  const remoteVideo = document.getElementById('remote-video');
+  remoteVideo.srcObject = null
+}
+
 //上线
 ws.onopen = () => {
 
@@ -189,6 +215,9 @@ ws.onmessage = (msg) => {
     case 'candidate':
       handleReceiveCandidate(jsonMsg.data)
       break;
+    case 'bye':
+      handleReceiveBye(jsonMsg.data)
+      break;
     default:
       break;
   }
@@ -202,3 +231,29 @@ ws.onerror = (err) => {
 ws.onclose = () => {
   console.log("close");
 };
+
+function showClose() {
+  const closeChat = document.getElementById('closeChat');
+  closeChat.style.display = 'inline';
+}
+
+function hideClose() {
+  const closeChat = document.getElementById('closeChat');
+  closeChat.style.display = 'none';
+}
+
+const closeChat2 = document.getElementById('closeChat');
+closeChat2.onclick = function () {
+  const msg = {
+    type: 'bye',
+    data: {
+      from: localUser,
+      to: remoteUser,
+      session_id: localUser + '_' + remoteUser
+    }
+  }
+
+  ws.send(JSON.stringify(msg))
+  closePc()
+  hideClose()
+}

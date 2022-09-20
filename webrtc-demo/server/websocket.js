@@ -51,6 +51,7 @@ function createWebSocket(options) {
                 case 'offer':
                 case 'answer':
                 case 'candidate':
+                case 'bye':
                     // 不能直接使用msg来send，可能会变为二进制
                     send(clientList[jsonObj.data.to], JSON.stringify(jsonObj))
                     break;
