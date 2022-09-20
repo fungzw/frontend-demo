@@ -7,6 +7,8 @@ function createWs(openCallback, msgCallback, errorCallback, closeCallback) {
     ws.onopen = () => {
         if (openCallback) {
             openCallback()
+        } else {
+            console.log('ws opened')
         }
     }
     // 接收消息
@@ -17,6 +19,8 @@ function createWs(openCallback, msgCallback, errorCallback, closeCallback) {
     ws.onerror = (err) => {
         if (errorCallback) {
             errorCallback(err)
+        } else {
+            console.log('ws error', err)
         }
     }
 
@@ -24,6 +28,8 @@ function createWs(openCallback, msgCallback, errorCallback, closeCallback) {
     ws.onclose = () => {
         if (closeCallback) {
             closeCallback()
+        } else {
+            console.log('ws closed')
         }
     }
 }
