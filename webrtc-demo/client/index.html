@@ -15,10 +15,12 @@
                 <ul id="login-users"></ul>
             </div>
 
+            <!-- video节点，使用autoplay自动播放，以及使用自带播放器playsinline -->
             <div class="video-container">
                 <div class="local-video-wrapper small-wrapper">
                     <label class="title">本地视频</label>
-                    <video id="local-video" class="local-video" autoplay playsinline></video>
+                    <!-- 本地视频声音不用播放出来，静音即可，所以加上muted -->
+                    <video id="local-video" class="local-video" autoplay playsinline muted></video>
                 </div>
                 <div class="remote-video-wrapper">
                     <label class="title">远程视频</label>

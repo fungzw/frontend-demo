@@ -56,6 +56,7 @@ async function startChat() {
         const devices = await navigator.mediaDevices.enumerateDevices().catch(function (e) {
             console.error('设备打开失败', e)
         })
+        console.log(devices)
 
         if (!devices) {
             return false;
@@ -63,23 +64,24 @@ async function startChat() {
 
         const inputId = [];
         devices.forEach(function (device) {
+            // 有可能因为权限问题，导致deviceId是空的，导致整体inputId为空
             if (device.kind == "videoinput" && device.deviceId) {
                 // 挑出视频输入设备
                 inputId.push(device.deviceId)
             }
         });
-
-        if (inputId.length == 0) {
-            console.error('无视频输入设备')
-            return false
-        }
-
-        const localStream = await navigator.mediaDevices.getUserMedia({
-            video: {
+        let videoCfg = true
+        if (inputId.length != 0) {
+            // 当找到有deviceId的videoInput时，直接声明使用它
+            videoCfg = {
                 deviceId: {
                     exact: inputId[0]
                 }
-            },
+            }
+        }
+
+        const localStream = await navigator.mediaDevices.getUserMedia({
+            video: videoCfg,
             audio: {
                 echoCancellation: true,
                 noiseSuppression: true,
