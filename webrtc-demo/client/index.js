@@ -31,7 +31,7 @@ async function handleUserClick(evt) {
     const userName = target.getAttribute('data-name').trim();
 
     if (userName + '' === localUser + '') {
-        alert('不能跟自己进行视频会话');
+        showMessage('不能跟自己进行视频会话')
         return;
     }
 
@@ -43,11 +43,10 @@ async function handleUserClick(evt) {
 let pc = null;
 
 /**
- * 邀请用户加入视频聊天
- *  1、本地启动视频采集
- *  2、交换信令
+ * 开启本地视频
+ * @returns {Promise<boolean>}
  */
-async function startChat() {
+async function openVideo() {
     // 检查是否支持navigator.mediaDevices
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error('不支持 getUserMedia 功能！');
@@ -56,7 +55,6 @@ async function startChat() {
         const devices = await navigator.mediaDevices.enumerateDevices().catch(function (e) {
             console.error('设备打开失败', e)
         })
-        console.log(devices)
 
         if (!devices) {
             return false;
@@ -88,7 +86,7 @@ async function startChat() {
                 autoGainControl: true
             }
         }).catch(function (e) {
-            console.log('打开设备失败', e)
+            showMessage('打开设备失败')
         })
 
         if (!localStream) {
@@ -99,16 +97,55 @@ async function startChat() {
         const localVideo = document.getElementById('local-video');
         localMediaStream = localStream
         localVideo.srcObject = localMediaStream;
-        console.log('startChat,localMediaStream', localMediaStream)
 
+        return true
+    }
+}
+
+/**
+ * 关闭本地视频
+ */
+function closeVideo() {
+    if (localMediaStream) {
+        if (localMediaStream && localMediaStream.getTracks()) {
+            localMediaStream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+            localMediaStream = null;
+        }
+    }
+
+    const localVideo = document.getElementById('local-video');
+    localVideo.srcObject = null
+    const remoteVideo = document.getElementById('remote-video');
+    remoteVideo.srcObject = null
+
+    const closeChat = document.getElementById('closeChat');
+    closeChat.style.display = 'none';
+}
+
+/**
+ * 邀请用户加入视频聊天
+ *  1、本地启动视频采集
+ *  2、交换信令
+ */
+async function startChat() {
+    const opened = await openVideo()
+
+    if (opened) {
         // 创建 peerConnection
         createPeerConnection();
 
         // 将媒体流添加到webrtc的音视频收发器
         localMediaStream.getTracks().forEach(track => {
-            console.log('pc add track', track)
             pc.addTrack(track, localMediaStream);
         });
+
+        // 本地视频流打开之后，就可以显示关闭通话的按钮
+        const closeChat = document.getElementById('closeChat');
+        closeChat.style.display = 'inline';
+    } else {
+        showMessage('开启通话失败')
     }
 }
 
@@ -170,59 +207,46 @@ function ontrack(evt) {
     closeChat.style.display = 'inline';
 }
 
+function endChat() {
+    closePeerConnection()
+    closeVideo()
+}
+
 function closePeerConnection() {
-    if (this.pc) {
-        this.pc.close();
-        this.pc = null;
+    if (pc) {
+        pc.close();
+        pc = null;
     }
-
-    console.log('localMediaStream', localMediaStream)
-    if (localMediaStream && localMediaStream.getTracks()) {
-        localMediaStream.getTracks().forEach(function (track) {
-            console.log('关闭track', track)
-            track.stop();
-        });
-        localMediaStream = null;
-    }
-
-    const localVideo = document.getElementById('local-video');
-    localVideo.srcObject = null
-    const remoteVideo = document.getElementById('remote-video');
-    remoteVideo.srcObject = null
-
-    const closeChat = document.getElementById('closeChat');
-    closeChat.style.display = 'none';
 }
 
 async function handleReceiveOffer(data) {
-    // 设置远端描述
-    const remoteDescription = new RTCSessionDescription(data.description);
-    remoteUser = data.from;
-    createPeerConnection();
-    await pc.setRemoteDescription(remoteDescription);
+    // 先判断能否开启本地视频
+    const opened = await openVideo()
+    if (opened) {
+        // 设置远端描述
+        const remoteDescription = new RTCSessionDescription(data.description);
+        remoteUser = data.from;
+        createPeerConnection();
+        await pc.setRemoteDescription(remoteDescription);
 
-    // 本地音视频采集
-    const localVideo = document.getElementById('local-video');
-    localMediaStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-    console.log('receive offer,open localmediastream', localMediaStream)
-    localVideo.srcObject = localMediaStream;
-    localMediaStream.getTracks().forEach(track => {
-        pc.addTrack(track, localMediaStream);
-    });
+        localMediaStream.getTracks().forEach(track => {
+            pc.addTrack(track, localMediaStream);
+        });
 
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    const wantMsg = {
-        type: 'answer',
-        data: {
-            from: localUser,
-            to: remoteUser,
-            session_id: sessionId,
-            description: answer // answer结构也是{type:'answer',sdp:sdp}
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        const wantMsg = {
+            type: 'answer',
+            data: {
+                from: localUser,
+                to: remoteUser,
+                session_id: sessionId,
+                description: answer // answer结构也是{type:'answer',sdp:sdp}
+            }
         }
-    }
 
-    sendWs(JSON.stringify(wantMsg))
+        sendWs(JSON.stringify(wantMsg))
+    }
 }
 
 async function handleReceiveAnswer(data) {
@@ -233,11 +257,13 @@ async function handleReceiveAnswer(data) {
 }
 
 async function handleReceiveCandidate(data) {
-    await pc.addIceCandidate(data.candidate);
+    if (pc) {
+        await pc.addIceCandidate(data.candidate);
+    }
 }
 
 async function handleReceiveBye() {
-    closePeerConnection()
+    endChat()
 }
 
 // 接收消息
@@ -278,5 +304,20 @@ document.getElementById('closeChat').onclick = function () {
     }
 
     sendWs(JSON.stringify(msg))
-    closePeerConnection()
+    endChat()
+}
+
+let msgTime = null;
+function showMessage(msg) {
+    document.getElementById('msg').innerHTML = msg
+    document.getElementById('msg').style.display = 'block'
+
+    if (msgTime) {
+        clearTimeout(msgTime)
+        msgTime = null
+    }
+
+    msgTime = setTimeout(function (){
+        document.getElementById('msg').style.display = 'none'
+    }, 2000)
 }
