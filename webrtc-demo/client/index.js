@@ -220,16 +220,17 @@ function closePeerConnection() {
 }
 
 async function handleReceiveOffer(data) {
+    // 同步方式，直接先创建peer，避免异步后，导致offer端的candidate先过来导致pc未初始化报错
+    createPeerConnection();
+    // 设置远端描述
+    const remoteDescription = new RTCSessionDescription(data.description);
+    remoteUser = data.from;
+    sessionId = localUser + '_' + remoteUser
+    await pc.setRemoteDescription(remoteDescription);
+
     // 先判断能否开启本地视频
     const opened = await openVideo()
     if (opened) {
-        // 设置远端描述
-        const remoteDescription = new RTCSessionDescription(data.description);
-        remoteUser = data.from;
-        sessionId = localUser + '_' + remoteUser
-        createPeerConnection();
-        await pc.setRemoteDescription(remoteDescription);
-
         localMediaStream.getTracks().forEach(track => {
             pc.addTrack(track, localMediaStream);
         });
