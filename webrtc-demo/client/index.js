@@ -226,6 +226,7 @@ async function handleReceiveOffer(data) {
         // 设置远端描述
         const remoteDescription = new RTCSessionDescription(data.description);
         remoteUser = data.from;
+        sessionId = localUser + '_' + remoteUser
         createPeerConnection();
         await pc.setRemoteDescription(remoteDescription);
 
